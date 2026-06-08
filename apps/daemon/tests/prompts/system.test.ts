@@ -38,7 +38,12 @@ const hyperframesSkillPath = path.join(
   repoRoot,
   'design-templates/hyperframes/SKILL.md',
 );
+const officialHyperframesSkillPath = path.join(
+  repoRoot,
+  'plugins/_official/examples/hyperframes/SKILL.md',
+);
 const hyperframesSkillMarkdown = readFileSync(hyperframesSkillPath, 'utf8');
+const officialHyperframesSkillMarkdown = readFileSync(officialHyperframesSkillPath, 'utf8');
 const hyperframesSkillBody = [
   `> **Skill root (absolute):** \`${hyperframesRoot}\``,
   '>',
@@ -231,6 +236,21 @@ describe('composeSystemPrompt', () => {
     expect(prompt).toContain('## Active skill — hyperframes');
     expect(prompt).toContain('**Pre-flight (do this before any other tool):**');
     expect(prompt).toContain('`references/html-in-canvas.md`');
+    expect(prompt).toContain('media generate --surface video --model hyperframes-html --composition-dir <rel>');
+    expect(prompt).toContain('Do not run `npx hyperframes render` yourself');
+    expect(prompt).not.toContain('intentionally rejected for this model');
+    expect(prompt).not.toContain('AGENT_RENDERED');
+    expect(prompt).not.toContain('rendered by you directly via npx');
+  });
+
+  it('keeps both hyperframes skill copies aligned with the daemon render handoff', () => {
+    for (const markdown of [hyperframesSkillMarkdown, officialHyperframesSkillMarkdown]) {
+      expect(markdown).toContain('media generate --surface video --model hyperframes-html --composition-dir <rel>');
+      expect(markdown).toContain('Do not run `npx hyperframes render`');
+      expect(markdown).not.toContain('AGENT_RENDERED');
+      expect(markdown).not.toContain('rendered by you directly via npx');
+      expect(markdown).not.toContain('dispatcher path returns a 400');
+    }
   });
 
   it('does not add the responsive web contract to deck metadata without platform fields', () => {
@@ -246,6 +266,15 @@ describe('composeSystemPrompt', () => {
     expect(prompt).toContain('- **slideCount**: 10-15 pages');
     expect(prompt).not.toContain('**responsive web contract**');
     expect(prompt).not.toContain('**platformTargets**');
+  });
+
+  it('tells artifact generation to summarize instead of dumping raw HTML source into chat', () => {
+    const prompt = composeSystemPrompt({
+      metadata: { kind: 'prototype', fidelity: 'production' } as any,
+    });
+
+    expect(prompt).toContain('Do not dump the full raw HTML source back into chat');
+    expect(prompt).toContain('the assistant message should only summarize the result');
   });
 
   it('uses the primary skill surface when composed skill modes conflict', () => {
@@ -379,6 +408,19 @@ describe('composeSystemPrompt', () => {
       });
       expect(prompt).toContain('- `github`\n');
       expect(prompt).not.toContain('- `github` (github)');
+    });
+
+    it('keeps external MCP tools visible when OD-owned media execution is disabled', () => {
+      const prompt = composeSystemPrompt({
+        connectedExternalMcp: [{ id: 'external-media', label: 'External media' }],
+        metadata: { kind: 'image' },
+        mediaExecution: { mode: 'disabled' },
+      });
+
+      expect(prompt).toContain('## External MCP servers — already authenticated');
+      expect(prompt).toContain('`external-media`');
+      expect(prompt).toContain('Open Design-owned media execution is **disabled for this run**');
+      expect(prompt).not.toContain('## Media generation contract');
     });
   });
 
